@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API</title>
+</head>
+
+<body>
+    <h1>Bàn: <span id="table"></span>
+    </h1>
+    <script>
+        class Table {
+            constructor(id, name) {
+                this.id = id || "";
+                this.name = name || "";
+            }
+        }
+        const shop_id = 1285;
+        const domain = "https://api.findfine.com/shop/cart";
+        const shared_id = "Zjgrek9TcmJMQ0xCVzFpWGdHclRIZz09OjqzAm0CFiGM2HGp-YokKAHq"
+        const token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL3d3dy5maW5kZmluZS5jb20iLCJhdWQiOiJodHRwczovL3d3dy5maW5kZmluZS5jb20iLCJpYXQiOjE3NzI5MDM2OTcsIm5iZiI6MTc3MjkwMzY5NywiZXhwIjoxNzk4ODIzNjk3LCJkYXRhIjp7InVpZCI6MzQ0OTY5fX0.2aPnf_Exf3pkk2xRF5FUXRniMy0Uofnd8gOf9AfKIt8";
+        const firstId = 24042;
+        const totalTable = 36;
+        const tables = [];
+        const drinks = ["Bia tươi 89 Keng1l", "Sài gòn lon", "Tiger nâu lon", "Tiger bạc lon", "Heneiken lon nhỏ", "Vodka men nhỏ", "Vodka men lớn", "Rượu chuối nhỏ", "Rượu chuối lớn", "Nước suối", "Coca", "Sting", "7UP", "Pepsi", "Nước cam", "Bò húc", "Táo mèo lớn", "Táo mèo nhỏ", "Ô long"];
+    </script>
+
+    <script>
+        async function init() {
+            for (let i = 0; i < totalTable; i++) {
+                const new_table = new Table(firstId + i, i + 1);
+                tables.push(new_table)
+                document.getElementById("table").textContent = new_table.name;
+                await getCart(new_table);
+            }
+        }
+        init();
+        async function getCart(e) {
+            const response = await fetch(domain, {
+                method: "POST",
+                headers: {
+                    "Accept": "*/*",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Connection": "keep-alive",
+                    "Origin": "https://m.findfine.com",
+                    "Referer": "https://m.findfine.com/",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "authorization": "Bearer " + token,
+                    "binVersion": "20260130",
+                    "clientDateTime": getClientDateTime(),
+                    "clientDeviceId": "17728107341898551124",
+                    "clientHeight": "588",
+                    "clientModel": "PC",
+                    "clientTimeZone": "+07:00",
+                    "clientType": "h5",
+                    "clientWidth": "1272",
+                    "content-type": "application/json",
+                    "language": "vi",
+                    "platform": "windows"
+                },
+                body: JSON.stringify({
+                    pageNumber: 1,
+                    pageTotal: 0,
+                    _t: Date.now(),
+                    shop_id: shop_id,
+                    place_id: e.id,
+                    list: "[]",
+                    share_id: shared_id
+                }),
+            });
+
+            const data = await response.json();
+            if (data.data.cart_list != null && data.data.cart_list.length != 0) {
+                await speak("Bàn " + e.name)
+                for (let i = 0; i < data.data.cart_list.length; i++) {
+                    if (!drinks.includes(data.data.cart_list[i].title)) {
+                        await speak(data.data.cart_list[i].title + " số lượng: " + data.data.cart_list[i].qty);
+                    }
+                }
+            }
+        }
+        function getClientDateTime() {
+            const now = new Date();
+
+            const pad = (n) => n.toString().padStart(2, "0");
+
+            const year = now.getFullYear();
+            const month = pad(now.getMonth() + 1);
+            const day = pad(now.getDate());
+
+            const hours = pad(now.getHours());
+            const minutes = pad(now.getMinutes());
+            const seconds = pad(now.getSeconds());
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+        function speak(text) {
+            return new Promise(resolve => {
+                const msg = new SpeechSynthesisUtterance(text);
+                msg.lang = "vi-VN";
+                msg.rate = 0.75;
+                msg.pitch = 2;
+
+                msg.onend = () => {
+                    resolve(); // khi đọc xong
+                };
+
+                speechSynthesis.speak(msg);
+            });
+        }
+    </script>
+
+</body>
+
+</html>
