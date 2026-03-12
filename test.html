@@ -9,7 +9,6 @@
         #food_names {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            /* 2 cột */
             gap: 10px;
             width: 600px;
         }
@@ -28,64 +27,104 @@
             width: 20px;
             height: 20px;
         }
+
+        #status {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 
 <body>
-    <h1>Danh sách các món đang chuẩn bị:
-    </h1>
-    <div id="food_names">
-
+    <div id="overlay" style="
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.85);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; z-index: 999;
+    ">
+        <div style="color: white; font-size: 32px; font-weight: bold; text-align: center;">
+            🔊<br>Bấm để bắt đầu
+        </div>
     </div>
-    <script>
+
+    <h1>Danh sách các món đang chuẩn bị:</h1>
+    <div id="status">⏳ Đang tải model giọng nói lần đầu (~50MB)...</div>
+    <div id="food_names"></div>
+
+    <script type="module">
+        import * as tts from "https://esm.run/@diffusionstudio/vits-web";
+
+        // ---- Biến toàn cục ----
+        let ttsReady = false;
         let maxOrderId = 0;
+
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-        let foods = document.getElementById("food_names").children;
-        const token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL3d3dy5maW5kZmluZS5jb20iLCJhdWQiOiJodHRwczovL3d3dy5maW5kZmluZS5jb20iLCJpYXQiOjE3NTU0Mzg4ODMsIm5iZiI6MTc1NTQzODg4MywiZXhwIjoxNzgxMzU4ODgzLCJkYXRhIjp7InVpZCI6NDc4Nn19.5EPOWDigU_qF_NaB08mH15e1bpOkU2n2iqJWbAQ3i-E"
+        const foods = document.getElementById("food_names").children;
+        const statusEl = document.getElementById("status");
+
+        const token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL3d3dy5maW5kZmluZS5jb20iLCJhdWQiOiJodHRwczovL3d3dy5maW5kZmluZS5jb20iLCJpYXQiOjE3NTU0Mzg4ODMsIm5iZiI6MTc1NTQzODg4MywiZXhwIjoxNzgxMzU4ODgzLCJkYXRhIjp7InVpZCI6NDc4Nn19.5EPOWDigU_qF_NaB08mH15e1bpOkU2n2iqJWbAQ3i-E";
+
         const placeMap = {
-            24042: 1,
-            24043: 2,
-            24044: 3,
-            24045: 4,
-            24046: 5,
-            24047: 6,
-            24048: 7,
-            24049: 8,
-            24050: 9,
-            24051: 10,
-            24052: 11,
-            24053: 12,
-            24054: 13,
-            24056: 14,
-            24057: 15,
-            24119: 16,
-            24120: 17,
-            24121: 18,
-            24122: 19,
-            24123: 20,
-            24124: 21,
-            24125: 22,
-            24126: 23,
-            24127: 24,
-            24128: 25,
-            24129: 26,
-            24130: 27,
-            24131: 28,
-            24132: 29,
-            24133: 30,
-            24134: 31,
-            24135: 32,
-            24136: 33,
-            24137: 34,
-            24138: 35,
-            24139: 36,
-            24140: 37,
-            24141: 38,
-            24142: 39,
-            24143: 40
+            24042: 1, 24043: 2, 24044: 3, 24045: 4, 24046: 5,
+            24047: 6, 24048: 7, 24049: 8, 24050: 9, 24051: 10,
+            24052: 11, 24053: 12, 24054: 13, 24056: 14, 24057: 15,
+            24119: 16, 24120: 17, 24121: 18, 24122: 19, 24123: 20,
+            24124: 21, 24125: 22, 24126: 23, 24127: 24, 24128: 25,
+            24129: 26, 24130: 27, 24131: 28, 24132: 29, 24133: 30,
+            24134: 31, 24135: 32, 24136: 33, 24137: 34, 24138: 35,
+            24139: 36, 24140: 37, 24141: 38, 24142: 39, 24143: 40
+        };
+
+        // ---- Khởi tạo vits-web ----
+        async function initPiper() {
+            try {
+                await tts.download("vi_VN-vivos-x_low", (progress) => {
+                    const pct = Math.round(progress.loaded * 100 / progress.total);
+                    statusEl.textContent = `⏳ Đang tải model: ${pct}%`;
+                });
+                ttsReady = true;
+                statusEl.textContent = "✅ Giọng nói sẵn sàng (offline)";
+            } catch (err) {
+                console.warn("vits-web lỗi:", err);
+                statusEl.textContent = "❌ Không tải được model giọng nói";
+            }
         }
+        initPiper();
+
+        // ---- Hàm speak dùng vits-web ----
+        async function speak(text) {
+            if (!ttsReady) {
+                console.warn("TTS chưa sẵn sàng, bỏ qua:", text);
+                return;
+            }
+            try {
+                const wav = await tts.predict({
+                    text: text,
+                    voiceId: "vi_VN-vivos-x_low"
+                });
+                const audio = new Audio();
+                audio.src = URL.createObjectURL(wav);
+                await new Promise((resolve) => {
+                    audio.onended = resolve;
+                    audio.onerror = resolve;
+                    audio.play().catch(resolve);
+                });
+            } catch (err) {
+                console.error("Speak lỗi:", err);
+            }
+        }
+
+        // ---- Bấm để bắt đầu ----
+        document.getElementById("overlay").addEventListener("click", async function () {
+            this.remove();
+            const ctx = new AudioContext();
+            await ctx.resume();
+            init();
+        });
+
+        // ---- API calls ----
         async function checkNewOrder() {
-            //kiểm tra có đơn mới không? true:false
             const res = await fetch("https://api.findfine.com/pos/index/checkNotice", {
                 method: "POST",
                 headers: {
@@ -96,9 +135,7 @@
                     "Sec-Fetch-Mode": "cors",
                     "Sec-Fetch-Site": "cross-site",
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) FindFine-POS/2.1.7 Chrome/106.0.5249.199 Electron/21.4.4 Safari/537.36 CristBrowser/1.0.0",
-
                     "authorization": "Bearer " + token,
-
                     "binVersion": "20260101",
                     "clientDateTime": getClientDateTime(),
                     "clientDeviceId": "17478484585024596672",
@@ -108,21 +145,17 @@
                     "clientType": "webapp",
                     "clientVersion": "2.1.7",
                     "clientWidth": "1280",
-
                     "content-type": "application/json",
                     "language": "vi",
                     "osAndroidAPILevel": "0",
                     "osName": "Windows 10 x64",
                     "osVersion": "10 x64",
                     "platform": "windows",
-
                     "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Chromium\";v=\"106\"",
                     "sec-ch-ua-mobile": "?0",
                     "sec-ch-ua-platform": "\"Windows\"",
-
                     "subVersion": "0"
                 },
-
                 body: JSON.stringify({
                     max_order_id: maxOrderId,
                     max_msg_id: 0,
@@ -130,18 +163,12 @@
                     _locked: 0,
                     shop_id: "1285"
                 })
-            })
+            });
             const temp = await res.json();
-            const newOrderId = await temp.data.notice.order_id;
-            if (newOrderId != null && newOrderId > maxOrderId) {
-                console.log(maxOrderId);
-                return true;
-            } else {
-                console.log(maxOrderId);
-                return false;
-            }
-
+            const newOrderId = temp.data.notice.order_id;
+            return newOrderId != null && newOrderId > maxOrderId;
         }
+
         async function getNewData(time) {
             const res = await fetch("https://api.findfine.com/pos/order/getData", {
                 method: "POST",
@@ -169,14 +196,11 @@
                     "osName": "Windows 10 x64",
                     "osVersion": "10 x64",
                     "platform": "windows",
-
                     "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Chromium\";v=\"106\"",
                     "sec-ch-ua-mobile": "?0",
                     "sec-ch-ua-platform": "\"Windows\"",
-
                     "subVersion": "0"
                 },
-
                 body: JSON.stringify({
                     pageNumber: 1,
                     pageTotal: 1,
@@ -191,59 +215,49 @@
             maxOrderId = data.data.list[0].id;
             return data.data.list[0];
         }
+
+        // ---- Logic chính ----
         async function init() {
-            speak("Xin chào");
-            const newOrder = await getNewData(String(getCurrentDate() + " 00:00:00"));
+            await speak("Xin chào");
+            await getNewData(String(getCurrentDate() + " 00:00:00"));
             setInterval(async () => {
                 if (await checkNewOrder()) {
                     const newOrder = await getNewData(getClientDateTime());
-                    getOrderDetail(newOrder);
+                    await getOrderDetail(newOrder);
                 }
             }, 2000);
-            while (true) {
-                if (foods.length > 0) {
-                    for (let i = 0; i < foods.length; i++) {
-                        await speak(foods[i].textContent);
-                    }
-                    await delay(5 * 60 * 1000);
-                } else {
-                    await delay(5000);
-                }
-            }
         }
-        init();
+
         function addFood(name) {
             const container = document.createElement("div");
             container.className = "food-item";
-
             const checkbox = document.createElement("input");
             checkbox.type = "checkbox";
             checkbox.addEventListener("change", function () {
-                if (this.checked) {
-                    this.parentElement.remove();
-                }
+                if (this.checked) this.parentElement.remove();
             });
             const label = document.createElement("span");
             label.textContent = name;
-
             container.appendChild(checkbox);
             container.appendChild(label);
-
             document.getElementById("food_names").appendChild(container);
-
         }
+
         async function getOrderDetail(order) {
             if (order.goods_list != null && order.goods_list.length > 0) {
-                //Trường hợp có nhiều sản phẩm
                 for (let i = 0; i < order.goods_list.length; i++) {
                     const temp = order.goods_list[i];
-                    addFood(temp.goods_name + " Số lượng " + temp.qty + ",Bàn " + checkPlaceId(temp.place_id));
+                    const text = temp.goods_name + " Số lượng " + temp.qty + ", Bàn " + checkPlaceId(temp.place_id);
+                    addFood(text);
+                    await speak(text);
                 }
             } else {
-                //có 1 sản phẩm duy nhất
-                addFood(order.goods_name + " Số lượng " + order.qty + ",Bàn " + checkPlaceId(order.place_id));
+                const text = order.goods_name + " Số lượng " + order.qty + ", Bàn " + checkPlaceId(order.place_id);
+                addFood(text);
+                await speak(text);
             }
         }
+
         function checkPlaceId(id) {
             if (id == 24041) return "Mang đi"
             if (id == 26686) return "Mang đi 2"
@@ -251,46 +265,18 @@
             if (id == 26688) return "Mang đi 4"
             return placeMap[id] || "?"
         }
-        function speak(text) {
-            return new Promise(resolve => {
-                const msg = new SpeechSynthesisUtterance(text);
-                msg.lang = "vi-VN";
-                msg.rate = 1;
-                msg.pitch = 2;
 
-                msg.onend = () => {
-                    resolve(); // khi đọc xong
-                };
-
-                speechSynthesis.speak(msg);
-            });
-        }
         function getClientDateTime() {
             const now = new Date();
-
             const pad = (n) => n.toString().padStart(2, "0");
-
-            const year = now.getFullYear();
-            const month = pad(now.getMonth() + 1);
-            const day = pad(now.getDate());
-
-            const hour = pad(now.getHours());
-            const minute = pad(now.getMinutes());
-            const second = pad(now.getSeconds());
-
-            return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+            return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
         }
+
         function getCurrentDate() {
             const now = new Date();
-
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, "0");
-            const day = String(now.getDate()).padStart(2, "0");
-
-            return `${year}-${month}-${day}`;
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         }
     </script>
-
 </body>
 
 </html>
